@@ -6,7 +6,7 @@ version := "0.0.1"
 
 scalaVersion := "2.11.12"
 
-libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.4.4"
+libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.4.4" % "provided"
 
 libraryDependencies += "mrpowers" % "spark-daria" % "0.35.2-s_2.11"
 libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.5.5"
