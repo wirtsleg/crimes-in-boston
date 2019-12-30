@@ -9,7 +9,7 @@ scalaVersion := "2.11.12"
 libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.4.4"
 
 libraryDependencies += "mrpowers" % "spark-daria" % "0.35.2-s_2.11"
-libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.6.7"
+libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.5.5"
 libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.2.0"
 
 libraryDependencies += "MrPowers" % "spark-fast-tests" % "0.20.0-s_2.11" % "test"
