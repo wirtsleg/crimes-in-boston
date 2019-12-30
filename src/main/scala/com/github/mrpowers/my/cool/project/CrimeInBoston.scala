@@ -4,7 +4,6 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{SaveMode, SparkSession}
 
 case class OffenceCode(CODE: String, NAME: String)
-
 case class CrimeTypeRow(district: String, crime_type: String, count: Long)
 
 object CrimeInBoston {
