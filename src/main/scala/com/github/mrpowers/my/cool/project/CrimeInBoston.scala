@@ -26,6 +26,7 @@ object CrimeInBoston {
         "%05d".format(row.CODE.toInt),
         row.NAME.replaceAll("\"", "").split(" - ")(0))
       )
+      .dropDuplicates("CODE")
 
     val fullCrimeTable = crimes
       .join(broadcast(offenceCodes), crimes("OFFENSE_CODE") === offenceCodes.col("CODE"))
@@ -42,7 +43,19 @@ object CrimeInBoston {
         avg("Lat").as("lat"),
         avg("Long").as("lng")
       )
-      .withColumn("crimes_monthly", round($"crimes_total" / 12, 2))
+
+    val months = fullCrimeTable
+      .groupBy($"district", $"MONTH")
+      .agg(count("incident_number").as("crimes_in_month"))
+
+    months.createOrReplaceTempView("df")
+    val medians = spark.sql("""
+                           SELECT district as m_district, percentile_approx(crimes_in_month, 0.5) as crimes_monthly
+                           FROM df GROUP BY district""")
+
+    val crimesWithMedians = crimesTotalAvgLatLong
+      .join(medians, crimesTotalAvgLatLong("district") === medians("m_district"))
+      .drop("m_district")
 
     val crimeTypes = fullCrimeTable
       .select("incident_number", "district", "crime_type")
@@ -51,17 +64,17 @@ object CrimeInBoston {
       .as[CrimeTypeRow]
       .groupByKey(_.district)
       .mapGroups {
-        case (row, iter) =>
+        case (district, iter) =>
           val types = iter.toList.sortBy(-_.count).take(3)
             .map(_.crime_type)
             .mkString(", ")
-          CrimeTypeRow(row.distinct, types, 0)
+          CrimeTypeRow(district, types, 0)
       }
       .withColumnRenamed("crime_type", "frequent_crime_types")
       .select("district", "frequent_crime_types")
 
     val result = crimeTypes
-      .join(crimesTotalAvgLatLong, crimeTypes("district") === crimesTotalAvgLatLong("district"))
+      .join(crimesWithMedians, crimeTypes("district") === crimesWithMedians("district"))
       .select(crimeTypes("district"), $"crimes_total", $"crimes_monthly", $"frequent_crime_types", $"lat", $"lng")
 
     result.repartition(1)
