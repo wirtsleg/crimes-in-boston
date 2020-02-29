@@ -1,10 +1,12 @@
 package com.github.mrpowers.my.cool.project
 
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{SaveMode, SparkSession}
 
 case class OffenceCode(CODE: String, NAME: String)
-case class CrimeTypeRow(district: String, crime_type: String, count: Long)
+
+case class CrimeTypeRow(district: String, crime_type: String)
 
 object CrimeInBoston {
 
@@ -49,7 +51,8 @@ object CrimeInBoston {
       .agg(count("incident_number").as("crimes_in_month"))
 
     months.createOrReplaceTempView("df")
-    val medians = spark.sql("""
+    val medians = spark.sql(
+      """
                            SELECT district as m_district, percentile_approx(crimes_in_month, 0.5) as crimes_monthly
                            FROM df GROUP BY district""")
 
@@ -57,21 +60,20 @@ object CrimeInBoston {
       .join(medians, crimesTotalAvgLatLong("district") === medians("m_district"))
       .drop("m_district")
 
+    val windowSpec = Window.partitionBy($"district").orderBy($"count".desc)
+
     val crimeTypes = fullCrimeTable
       .select("incident_number", "district", "crime_type")
       .groupBy("district", "crime_type")
       .count()
+      .withColumn("row_number", row_number.over(windowSpec))
+      .filter($"row_number" <= 3)
+      .drop("row_number", "count")
       .as[CrimeTypeRow]
       .groupByKey(_.district)
-      .mapGroups {
-        case (district, iter) =>
-          val types = iter.toList.sortBy(-_.count).take(3)
-            .map(_.crime_type)
-            .mkString(", ")
-          CrimeTypeRow(district, types, 0)
-      }
+      .reduceGroups((x, y) => CrimeTypeRow(x.district, x.crime_type + ", " + y.crime_type))
+      .map({ case (_, row) => row })
       .withColumnRenamed("crime_type", "frequent_crime_types")
-      .select("district", "frequent_crime_types")
 
     val result = crimeTypes
       .join(crimesWithMedians, crimeTypes("district") === crimesWithMedians("district"))
